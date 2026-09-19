@@ -1,23 +1,41 @@
-<div align="center">
-  <h1>StarHub</h1>
-  <p><b>给小型 GitHub 社群用的互 Star 站。</b></p>
-  <p>GitHub 登录，录入自己的公开仓库，逐个翻看其他成员的项目并 Star；谁 Star 了谁、谁还没回，都有记录</p>
-  <p>
-    <img src="https://img.shields.io/badge/Next.js-16-202126?logo=nextdotjs&amp;logoColor=white" alt="Next.js 16" />
-    <img src="https://img.shields.io/badge/Node.js-22.5%2B-535966?logo=node.js&amp;logoColor=white" alt="Node.js 22.5 及以上" />
-    <img src="https://img.shields.io/badge/数据库-SQLite_单文件-596be9" alt="SQLite 单文件" />
-    <img src="https://img.shields.io/badge/许可证-MIT-3c3f4a" alt="MIT" />
-  </p>
-  <p><a href="https://star.zijiu522.cn">线上实例</a> &nbsp; · &nbsp; <a href="https://github.com/Lincb522/starhub/issues">反馈问题</a></p>
-  <br />
-  <img src="assets/home.png" width="420" alt="首页" />
-  &nbsp;&nbsp;
-  <img src="assets/repos.png" width="420" alt="全部仓库" />
-</div>
+<p align="center">
+  <img src="assets/icon.svg" width="120" height="120" alt="StarHub">
+</p>
 
-> Star 只在用户点击时执行，每次一个仓库，用用户自己的 OAuth 授权调用 GitHub API。没有批量按钮，没有后台代点。GitHub 的 [Acceptable Use Policies](https://docs.github.com/site-policy/acceptable-use-policies/github-acceptable-use-policies) 把有组织的刷 Star 视为不真实互动，会清理并可能处罚账号。这个站的用途是让成员看清彼此的仓库，点不点由人决定。
+<h1 align="center">StarHub</h1>
 
-StarHub 用 Next.js 写成，状态全部放在一个 SQLite 文件里，没有外部数据库。成员的 Star 状态以 GitHub 为准，本地记录只是缓存。
+<p align="center">GitHub · Star · 小型社群</p>
+
+<p align="center">
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-1F2328?style=flat-square&logo=nextdotjs&logoColor=white">
+  <img alt="Node.js 22.5+" src="https://img.shields.io/badge/Node.js-22.5%2B-555555?style=flat-square&logo=nodedotjs&logoColor=white">
+  <img alt="SQLite" src="https://img.shields.io/badge/storage-SQLite-FF5D48?style=flat-square&logo=sqlite&logoColor=white">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2DA44E?style=flat-square"></a>
+</p>
+
+<p align="center">
+  <a href="https://star.zijiu522.cn">线上实例</a>
+  ·
+  <a href="#本地运行">本地运行</a>
+  ·
+  <a href="#部署">部署</a>
+  ·
+  <a href="https://github.com/Lincb522/starhub/issues">Issues</a>
+</p>
+
+<table>
+  <tr>
+    <td colspan="2" align="center"><img src="assets/home.png" alt="首页"><br><sub><b>首页</b></sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="assets/repos.png" alt="全部仓库"><br><sub><b>全部仓库</b></sub></td>
+    <td width="50%" align="center"><img src="assets/users.png" alt="按用户浏览"><br><sub><b>按用户浏览</b></sub></td>
+  </tr>
+</table>
+
+StarHub 是给小型 GitHub 社群用的互 Star 站。成员用 GitHub 登录，录入自己的公开仓库，逐个翻看其他人的项目并 Star；谁 Star 了谁、谁还没回，都有记录。用 Next.js 写成，状态全部放在一个 SQLite 文件里，成员的 Star 状态以 GitHub 为准，本地记录只是缓存。
+
+Star 只在用户点击时执行，每次一个仓库，用用户自己的 OAuth 授权调用 GitHub API，没有批量按钮和后台代点。GitHub 的 [Acceptable Use Policies](https://docs.github.com/site-policy/acceptable-use-policies/github-acceptable-use-policies) 把有组织的刷 Star 视为不真实互动，会清理并可能处罚账号。这个站的用途是让成员看清彼此的仓库，点不点由人决定。
 
 ## 浏览与 Star
 
