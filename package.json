@@ -1,0 +1,36 @@
+{
+  "name": "star-hub",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "seed": "node scripts/seed-demo.mjs",
+    "sync:feishu": "node scripts/sync-feishu-repos.mjs",
+    "sync:github-stars": "node scripts/sync-github-stars.mjs",
+    "test:feishu": "node --test scripts/lib/feishu-sheet.test.mjs",
+    "test:repo-deck": "node --test scripts/lib/repo-deck.test.mjs",
+    "test:github-stars": "node --test scripts/lib/github-star*.test.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^1.40.0",
+    "next": "16.3.4",
+    "next-auth": "^5.0.0-beta.32",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^26.4.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "jsdom": "^30.0.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
