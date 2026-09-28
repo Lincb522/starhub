@@ -20,6 +20,8 @@
   ·
   <a href="#部署">部署</a>
   ·
+  <a href="#贡献榜">贡献榜</a>
+  ·
   <a href="https://github.com/Lincb522/starhub/issues">Issues</a>
 </p>
 
@@ -128,6 +130,16 @@ src/components/ 卡片、网格、记录页、提醒
 src/lib/        db.ts（SQLite）、github.ts、github-star-sync.ts、queries.ts
 scripts/        飞书同步、Star 对账、批量导入、部署脚本，lib/ 下是可复用逻辑和测试
 ```
+
+## 贡献榜
+
+感谢每一位参与 StarHub 的开发者。贡献者头像由 [contrib.rocks](https://contrib.rocks) 根据 GitHub 贡献记录生成，点击可查看完整贡献榜。
+
+<a href="https://github.com/Lincb522/starhub/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Lincb522/starhub" alt="StarHub 贡献者头像">
+</a>
+
+欢迎通过 [Issues](https://github.com/Lincb522/starhub/issues) 反馈问题，或提交 [Pull Request](https://github.com/Lincb522/starhub/pulls) 参与改进。
 
 ---
 
