@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { ArrowUpRight, Star } from "lucide-react";
 import { signIn } from "@/auth";
 import { getCurrentUser, inviteRequired } from "@/lib/current-user";
-import { collectStarrersOfViewer, filterForViewer, getStats, listRepos, sortForViewer } from "@/lib/queries";
-import { listReposBySubmitter, listStarsReceived, listUnreadReceivedStars } from "@/lib/db";
+import { collectStarrersOfViewer, getStats, listRepos, sortForViewer } from "@/lib/queries";
+import { groupReposForViewer } from "@/lib/repo-person";
+import { listReposBySubmitter, listStarsGiven, listStarsReceived, listUnreadReceivedStars } from "@/lib/db";
 import { syncGitHubStarTruth } from "@/lib/github-star-sync";
 import { LoginWithNotice } from "@/components/login-with-notice";
 import { MemberHome } from "@/components/member-home";
@@ -23,8 +24,10 @@ export default async function Home() {
     const starSync = await syncGitHubStarTruth(user);
     const repos = listRepos();
     const viewer = { id: user.id, login: user.login };
-    const todo = filterForViewer(sortForViewer(repos, viewer), viewer, "todo");
-    const doneCount = filterForViewer(repos, viewer, "done").length;
+    const doneIds = new Set(listStarsGiven(user.id).map((record) => record.personId));
+    const groups = groupReposForViewer(sortForViewer(repos, viewer), viewer.id);
+    const todo = groups.filter((group) => !group.starred && !doneIds.has(group.personId));
+    const doneCount = doneIds.size;
     const received = listStarsReceived(user.id);
     const receivedAlert = listUnreadReceivedStars(user.id);
     const starrersOfViewer = collectStarrersOfViewer(repos, viewer);
@@ -32,7 +35,7 @@ export default async function Home() {
     return (
       <MemberHome
         user={user}
-        repos={todo}
+        groups={todo}
         doneCount={doneCount}
         mineCount={mine.length}
         received={received}

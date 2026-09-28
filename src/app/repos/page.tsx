@@ -2,8 +2,9 @@ import Link from "next/link";
 import { ChevronLeft, Layers, LayoutGrid, Plus, Search, Users } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { getCurrentUser, inviteRequired } from "@/lib/current-user";
-import { listReposBySubmitter, listUnreadReceivedStars, type RepoWithStars, type UserBrief } from "@/lib/db";
+import { listReposBySubmitter, listStarsGiven, listUnreadReceivedStars, type RepoWithStars, type UserBrief } from "@/lib/db";
 import { collectStarrersOfViewer, filterForViewer, listRepos, sortForViewer, type RepoFilter } from "@/lib/queries";
+import { groupReposForViewer, repoPersonId } from "@/lib/repo-person";
 import type { Viewer } from "@/components/repo-card";
 import { RepoGrid } from "@/components/repo-grid";
 import { RepoDeck } from "@/components/repo-deck";
@@ -34,8 +35,10 @@ export default async function ReposPage({ searchParams }: PageProps<"/repos">) {
   const starrersOfViewer = viewer ? collectStarrersOfViewer(repos, viewer) : [];
 
   if (view === "deck" && user && viewer) {
-    const todo = filterForViewer(sortForViewer(repos, viewer), viewer, "todo");
-    const doneCount = filterForViewer(repos, viewer, "done").length;
+    const doneIds = new Set(listStarsGiven(user.id).map((record) => record.personId));
+    const groups = groupReposForViewer(sortForViewer(repos, viewer), viewer.id);
+    const todo = groups.filter((group) => !group.starred && !doneIds.has(group.personId));
+    const doneCount = doneIds.size;
     const mineCount = listReposBySubmitter(user.id).length;
     return (
       <div className="mx-auto max-w-6xl px-6">
@@ -43,7 +46,7 @@ export default async function ReposPage({ searchParams }: PageProps<"/repos">) {
         <div className="flex items-center justify-between pt-8">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">浏览</h1>
-            <p className="mt-1 text-sm text-fg/50">逐个浏览，Star 或跳过。</p>
+            <p className="mt-1 text-sm text-fg/50">逐个浏览用户，选择项目后 Star 或跳过。</p>
           </div>
           <Link href="/repos?view=grid" className="btn-ghost inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-fg/70">
             <LayoutGrid className="size-4" />
@@ -55,7 +58,7 @@ export default async function ReposPage({ searchParams }: PageProps<"/repos">) {
         )}
         <RepoDeck
           key={user.id}
-          repos={todo}
+          groups={todo}
           canStar={user.canStar}
           mineCount={mineCount}
           doneCount={doneCount}
@@ -68,9 +71,10 @@ export default async function ReposPage({ searchParams }: PageProps<"/repos">) {
   if (view === "users") {
     const groups = new Map<string, { user: UserBrief; repos: RepoWithStars[] }>();
     for (const repo of repos) {
-      const group = groups.get(repo.submitterId) ?? { user: repo.submitter, repos: [] };
+      const personId = repoPersonId(repo);
+      const group = groups.get(personId) ?? { user: repo.person, repos: [] };
       group.repos.push(repo);
-      groups.set(repo.submitterId, group);
+      groups.set(personId, group);
     }
     const selectedId = typeof sp.user === "string" ? sp.user : undefined;
     const selected = selectedId ? groups.get(selectedId) : undefined;
@@ -150,7 +154,7 @@ export default async function ReposPage({ searchParams }: PageProps<"/repos">) {
         r.fullName.toLowerCase().includes(q) ||
         (r.description ?? "").toLowerCase().includes(q) ||
         (r.language ?? "").toLowerCase().includes(q) ||
-        (r.submitter.xhsName ?? "").toLowerCase().includes(q),
+        (r.person.xhsName ?? "").toLowerCase().includes(q),
     );
   }
 

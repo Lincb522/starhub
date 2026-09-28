@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowLeftRight, ArrowUpRight, Star } from "lucide-react";
 import { listReposBySubmitter, listStarsGiven, listStarsReceived, type StarRecord, type UserBrief } from "@/lib/db";
-import { filterForViewer, listRepos } from "@/lib/queries";
+import { listRepos, sortForViewer } from "@/lib/queries";
+import { groupReposForViewer, repoPersonId } from "@/lib/repo-person";
 import { timeAgo } from "@/lib/time";
 import { Avatar } from "@/components/avatar";
 import { LanguageBadge } from "@/components/language-badge";
@@ -22,19 +23,30 @@ export function HistoryView({
     listRepos(),
   ];
   const viewer = { id: user.id, login: user.login };
-  const todo = filterForViewer(all, viewer, "todo").length;
 
   // 互 Star 关系：我 Star 过谁的仓库 / 谁 Star 过我的仓库。
   // 统一按仓库「属于谁」(personId) 判定，与仓库卡片一致，避免按 owner 字符串匹配带来的误判 / 漏判。
   const iStarred = new Set(given.map((g) => g.personId));
+  const todo = groupReposForViewer(sortForViewer(all, viewer), viewer.id)
+    .filter((group) => !group.starred && !iStarred.has(group.personId)).length;
   const starredMe = new Set(received.map((r) => r.user.id));
-  const notReturned = given.filter((record) => !starredMe.has(record.personId));
-  const mutualGiven = given.filter((record) => starredMe.has(record.personId));
+  const givenByPerson = new Map<string, StarRecord>();
+  for (const record of given) if (!givenByPerson.has(record.personId)) givenByPerson.set(record.personId, record);
+  const givenPeople = [...givenByPerson.values()];
+  const notReturned = givenPeople.filter((record) => !starredMe.has(record.personId));
+  const mutualGiven = givenPeople.filter((record) => starredMe.has(record.personId));
   // 收到但我还没回 Star：按人去重（同一人 Star 我多个仓库只列一次），保留最新一条记录
-  const owedByMe = [...new Map(received.filter((r) => !iStarred.has(r.user.id)).map((r) => [r.user.id, r])).values()];
-  // 对方录入的仓库数（与 /repos 按用户视图同样按录入人分组），决定"去回 Star"入口是否可用
+  const owedByMeMap = new Map<string, StarRecord>();
+  for (const record of received) {
+    if (!iStarred.has(record.user.id) && !owedByMeMap.has(record.user.id)) owedByMeMap.set(record.user.id, record);
+  }
+  const owedByMe = [...owedByMeMap.values()];
+  // 对方名下的仓库数（与 /repos 按用户视图使用同一个归属规则）
   const repoCountByPerson = new Map<string, number>();
-  for (const repo of all) repoCountByPerson.set(repo.submitter.id, (repoCountByPerson.get(repo.submitter.id) ?? 0) + 1);
+  for (const repo of all) {
+    const personId = repoPersonId(repo);
+    repoCountByPerson.set(personId, (repoCountByPerson.get(personId) ?? 0) + 1);
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
@@ -44,11 +56,11 @@ export function HistoryView({
           <h1 className="mt-1 text-3xl font-bold tracking-tight">记录</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Stat label="已 Star" value={given.length} />
+          <Stat label="已 Star 用户" value={givenPeople.length} />
           <Stat label="收到" value={received.length} />
           <Stat label="对方未回" value={notReturned.length} href="#not-returned" />
           <Stat label="我未回" value={owedByMe.length} href="#owed-by-me" />
-          <Stat label="待 Star" value={todo} href="/repos" />
+          <Stat label="待 Star 用户" value={todo} href="/repos" />
           <Stat label="我的仓库" value={mine.length} href="/submit" />
         </div>
       </div>
@@ -95,7 +107,7 @@ export function HistoryView({
           empty={given.length === 0 ? "你还没有 Star 过其他人的仓库。" : "当前没有未回 Star 记录。"}
         >
           {notReturned.map((record) => (
-            <Row key={record.id} record={record} person={record.submitter} mutual={false} />
+            <Row key={record.id} record={record} person={record.person} mutual={false} />
           ))}
         </Section>
       </div>
@@ -117,7 +129,7 @@ export function HistoryView({
             <Row
               key={g.id}
               record={g}
-              person={g.submitter}
+              person={g.person}
               mutual
             />
           ))}

@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   ArrowRight,
   Check,
+  ChevronDown,
   ExternalLink,
   History,
   KeyRound,
@@ -24,11 +25,12 @@ import { XhsBadge } from "@/components/xhs-badge";
 import { StarDetails } from "@/components/star-details";
 import { languageColor } from "@/lib/lang-colors";
 import type { RepoWithStars } from "@/lib/db";
+import type { PersonGroup } from "@/lib/repo-person";
 import { repoPersonId } from "@/lib/repo-person";
 
 type Props = {
-  /** 当前用户未 Star、且不属于自己的仓库，服务端已按已 Star 人数升序排好 */
-  repos: RepoWithStars[];
+  /** 当前用户尚未 Star 的人；每组仓库按已 Star 人数升序排列 */
+  groups: PersonGroup<RepoWithStars>[];
   canStar: boolean;
   mineCount: number;
   doneCount: number;
@@ -49,10 +51,12 @@ type DragState = {
 const LEAVE_MS = 280;
 const MAX_DRAG = 180;
 
-export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewer, embedded = false }: Props) {
+export function RepoDeck({ groups, canStar, mineCount, doneCount, starrersOfViewer, embedded = false }: Props) {
   const router = useRouter();
-  const [order, setOrder] = useState(() => repos.map((repo) => repo.id));
-  const [starredIds, setStarredIds] = useState<number[]>([]);
+  const [order, setOrder] = useState(() => groups.map((group) => group.personId));
+  const [starredPeople, setStarredPeople] = useState<string[]>([]);
+  const [selectedRepoId, setSelectedRepoId] = useState<number | null>(null);
+  const [activeGroup, setActiveGroup] = useState<PersonGroup<RepoWithStars> | null>(null);
   const [activeRepo, setActiveRepo] = useState<RepoWithStars | null>(null);
   const [leaving, setLeaving] = useState<Leaving>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -66,18 +70,18 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
 
   // Keep only browsing order locally; refreshed props own repository eligibility and metadata.
   const queue = useMemo(() => {
-    const completed = new Set(starredIds);
-    const available = new Map(repos.filter((repo) => !completed.has(repo.id)).map((repo) => [repo.id, repo]));
-    const result: RepoWithStars[] = [];
-    for (const id of order) {
-      const repo = available.get(id);
-      if (repo) result.push(repo);
-      available.delete(id);
+    const completed = new Set(starredPeople);
+    const available = new Map(groups.filter((group) => !completed.has(group.personId)).map((group) => [group.personId, group]));
+    const result: PersonGroup<RepoWithStars>[] = [];
+    for (const personId of order) {
+      const group = available.get(personId);
+      if (group) result.push(group);
+      available.delete(personId);
     }
     return [...result, ...available.values()];
-  }, [repos, order, starredIds]);
-  const starredNow = starredIds.length;
-  const totalStarred = doneCount + starredIds.filter((id) => repos.some((repo) => repo.id === id)).length;
+  }, [groups, order, starredPeople]);
+  const starredNow = starredPeople.length;
+  const totalStarred = doneCount + starredPeople.filter((id) => groups.some((group) => group.personId === id)).length;
 
   useEffect(
     () => () => {
@@ -88,7 +92,8 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
   );
 
   // Revalidation may remove the active card before its request or exit animation completes.
-  const current = activeRepo ?? queue[0];
+  const currentGroup = activeGroup ?? queue[0];
+  const current = activeRepo ?? currentGroup?.repos.find((repo) => repo.id === selectedRepoId) ?? currentGroup?.repos[0];
   const busy = pending || activeRepo !== null;
 
   const resetDrag = useCallback(() => {
@@ -98,26 +103,30 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
   }, []);
 
   const skip = useCallback(() => {
-    if (!current || busy) return;
+    if (!current || !currentGroup || busy) return;
     resetDrag();
     setMsg(null);
+    setActiveGroup(currentGroup);
     setActiveRepo(current);
     setLeaving("skip");
     timer.current = setTimeout(() => {
-      setOrder([...queue.filter((repo) => repo.id !== current.id).map((repo) => repo.id), current.id]);
+      setOrder([...queue.filter((group) => group.personId !== currentGroup.personId).map((group) => group.personId), currentGroup.personId]);
+      setSelectedRepoId(null);
+      setActiveGroup(null);
       setActiveRepo(null);
       setLeaving(null);
     }, LEAVE_MS);
-  }, [current, busy, queue, resetDrag]);
+  }, [current, currentGroup, busy, queue, resetDrag]);
 
   const star = useCallback(() => {
-    if (!current || busy) return;
+    if (!current || !currentGroup || busy) return;
     resetDrag();
     if (!canStar) {
       router.push(`/login?reauth=1&next=${encodeURIComponent(embedded ? "/" : "/repos")}`);
       return;
     }
     setMsg(null);
+    setActiveGroup(currentGroup);
     setActiveRepo(current);
     startTransition(async () => {
       let res;
@@ -125,27 +134,31 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
         res = await starRepo(current.id);
       } catch {
         setMsg("Star 失败，请重试");
+        setActiveGroup(null);
         setActiveRepo(null);
         return;
       }
       if (!res.ok) {
+        setActiveGroup(null);
         setActiveRepo(null);
         if (res.code === "REAUTH") router.push(`/login?reauth=1&next=${encodeURIComponent(embedded ? "/" : "/repos")}`);
         else setMsg(res.message);
         return;
       }
-      setStarredIds((ids) => ids.includes(current.id) ? ids : [...ids, current.id]);
+      setStarredPeople((ids) => ids.includes(currentGroup.personId) ? ids : [...ids, currentGroup.personId]);
       setLeaving("star");
       setToast(`已 Star ${current.fullName}`);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setToast(null), 2200);
       timer.current = setTimeout(() => {
+        setSelectedRepoId(null);
+        setActiveGroup(null);
         setActiveRepo(null);
         setLeaving(null);
         router.refresh();
       }, LEAVE_MS);
     });
-  }, [current, busy, canStar, router, resetDrag, embedded]);
+  }, [current, currentGroup, busy, canStar, router, resetDrag, embedded]);
 
   const finishDrag = useCallback(() => {
     const state = drag.current;
@@ -164,7 +177,7 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
 
   const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     if (busy || !current || event.button !== 0) return;
-    if ((event.target as HTMLElement).closest("a, button")) return;
+    if ((event.target as HTMLElement).closest("a, button, details")) return;
     const width = event.currentTarget.getBoundingClientRect().width;
     drag.current = {
       pointerId: event.pointerId,
@@ -213,6 +226,7 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
         tag === "TEXTAREA" ||
         tag === "SELECT" ||
         tag === "BUTTON" ||
+        tag === "SUMMARY" ||
         tag === "A" ||
         (e.target as HTMLElement | null)?.isContentEditable ||
         document.querySelector('[role="dialog"][aria-modal="true"]')
@@ -239,10 +253,10 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
             <PartyPopper className="size-8" />
           </span>
           <div>
-            <h2 className="text-2xl font-semibold">{starredNow > 0 ? `本次 Star ${starredNow} 个仓库` : "暂无待 Star 的仓库"}</h2>
+            <h2 className="text-2xl font-semibold">{starredNow > 0 ? `本次 Star ${starredNow} 位用户` : "暂无待 Star 的用户"}</h2>
             <p className="mt-2 text-sm text-fg/55">
-              累计 Star {totalStarred} 个仓库。
-              {mineCount === 0 ? "尚未录入自己的仓库。" : "新录入的仓库会显示在这里。"}
+              累计 Star {totalStarred} 位用户。
+              {mineCount === 0 ? "尚未录入自己的仓库。" : "新加入的用户会显示在这里。"}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -278,7 +292,7 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
     <div className={`deck-stage ${embedded ? "deck-stage-embedded" : ""}`}>
       <div className="mb-5 flex w-full max-w-2xl items-center justify-between text-xs text-fg/45">
         <span className="tabular-nums">
-          待 Star <span className="text-fg/80">{queue.length}</span>
+          待 Star 用户 <span className="text-fg/80">{queue.length}</span>
           {starredNow > 0 && (
             <>
               {" "}
@@ -316,7 +330,7 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
         )}
 
         <article
-          key={r.id}
+          key={currentGroup.personId}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd}
@@ -328,11 +342,11 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
           <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full blur-3xl" style={{ background: `${accent}2e` }} />
 
           <div className="relative flex items-center gap-4">
-            <Avatar src={r.submitter.avatarUrl} alt={r.owner} size={56} className="shrink-0 ring-2 ring-fg/10" />
+            <Avatar src={r.person.avatarUrl} alt={r.person.login} size={56} className="shrink-0 ring-2 ring-fg/10" />
             <div className="min-w-0 flex-1">
               <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-fg/55">
-                <span className="min-w-0 max-w-full truncate" title={`@${r.submitter.login}`}>@{r.submitter.login}</span>
-                <XhsBadge name={r.submitter.xhsName} />
+                <span className="min-w-0 max-w-full truncate" title={`@${r.person.login}`}>@{r.person.login}</span>
+                <XhsBadge name={r.person.xhsName} />
               </p>
               <a
                 href={r.htmlUrl}
@@ -350,6 +364,31 @@ export function RepoDeck({ repos, canStar, mineCount, doneCount, starrersOfViewe
           <p className="relative mt-6 min-h-14 text-pretty text-base leading-relaxed text-fg/70 sm:text-lg">
             {r.description || "暂无简介"}
           </p>
+
+          {currentGroup.repos.length > 1 && (
+            <details className="relative mt-5 rounded-xl border border-line bg-fg/[0.03]">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-fg/75">
+                选择项目 · 共 {currentGroup.repos.length} 个
+                <ChevronDown className="size-4 shrink-0" />
+              </summary>
+              <div className="border-t border-line p-2">
+                <p className="px-2 pb-1 text-xs text-fg/45">选好项目后点下方 Star</p>
+                {currentGroup.repos.map((repo) => (
+                  <button
+                    key={repo.id}
+                    type="button"
+                    aria-pressed={r.id === repo.id}
+                    disabled={busy}
+                    onClick={() => { setSelectedRepoId(repo.id); setMsg(null); }}
+                    className={`flex w-full min-w-0 items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-fg/5 ${r.id === repo.id ? "text-coral" : "text-fg/70"}`}
+                  >
+                    <span className="truncate">{repo.fullName}</span>
+                    {r.id === repo.id && <Check className="size-4 shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            </details>
+          )}
 
           <div className="relative mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-fg/55">
             <LanguageBadge language={r.language} />

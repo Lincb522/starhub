@@ -38,6 +38,7 @@ export { repoPersonId } from "../../scripts/lib/repo-person.mjs";
 
 export type RepoWithStars = Repo & {
   submitter: UserBrief;
+  person: UserBrief;
   stars: { user: UserBrief; createdAt: string }[];
 };
 
@@ -157,6 +158,9 @@ type RepoRow = {
   s_avatar: string | null;
   s_xhs: string | null;
   owner_user_id: string | null;
+  owner_login: string | null;
+  owner_avatar: string | null;
+  owner_xhs: string | null;
 };
 
 const toUser = (r: UserRow): User => ({
@@ -185,6 +189,9 @@ const toRepo = (r: RepoRow): RepoWithStars => ({
   ownerUserId: r.owner_user_id ?? null,
   createdAt: r.created_at,
   submitter: { id: r.submitter_id, login: r.s_login, avatarUrl: r.s_avatar, xhsName: r.s_xhs },
+  person: r.owner_user_id
+    ? { id: r.owner_user_id, login: r.owner_login!, avatarUrl: r.owner_avatar, xhsName: r.owner_xhs }
+    : { id: r.submitter_id, login: r.s_login, avatarUrl: r.s_avatar, xhsName: r.s_xhs },
   stars: [],
 });
 
@@ -292,7 +299,8 @@ export function claimReposByOwner(userId: string, login: string): number {
 /* ---------- repos ---------- */
 
 const REPO_SELECT = `
-  SELECT r.*, u.login AS s_login, u.avatar_url AS s_avatar, u.xhs_name AS s_xhs, o.id AS owner_user_id
+  SELECT r.*, u.login AS s_login, u.avatar_url AS s_avatar, u.xhs_name AS s_xhs,
+         o.id AS owner_user_id, o.login AS owner_login, o.avatar_url AS owner_avatar, o.xhs_name AS owner_xhs
   FROM repos r
   JOIN users u ON u.id = r.submitter_id
   LEFT JOIN users o ON lower(o.login) = lower(r.owner)`;
@@ -524,6 +532,8 @@ export type StarRecord = {
   user: UserBrief;
   /** 仓库录入者 */
   submitter: UserBrief;
+  /** 仓库所属用户 */
+  person: UserBrief;
   /** 该仓库在本站属于谁（见 repoPersonId），互 Star 判定以此为准 */
   personId: string;
 };
@@ -547,13 +557,16 @@ type StarRecordRow = {
   s_avatar: string | null;
   s_xhs: string | null;
   owner_user_id: string | null;
+  owner_login: string | null;
+  owner_avatar: string | null;
+  owner_xhs: string | null;
 };
 
 const STAR_RECORD_SELECT = `
   SELECT s.id, s.created_at, r.id AS repo_id, r.is_available, r.full_name, r.owner, r.name, r.html_url, r.language,
          u.id AS u_id, u.login AS u_login, u.avatar_url AS u_avatar, u.xhs_name AS u_xhs,
          o.id AS s_id, o.login AS s_login, o.avatar_url AS s_avatar, o.xhs_name AS s_xhs,
-         ow.id AS owner_user_id
+         ow.id AS owner_user_id, ow.login AS owner_login, ow.avatar_url AS owner_avatar, ow.xhs_name AS owner_xhs
   FROM stars s
   JOIN repos r ON r.id = s.repo_id
   JOIN users u ON u.id = s.user_id
@@ -566,6 +579,9 @@ const toStarRecord = (r: StarRecordRow): StarRecord => ({
   repo: { id: r.repo_id, fullName: r.full_name, owner: r.owner, name: r.name, htmlUrl: r.html_url, language: r.language, isAvailable: r.is_available === 1 },
   user: { id: r.u_id, login: r.u_login, avatarUrl: r.u_avatar, xhsName: r.u_xhs },
   submitter: { id: r.s_id, login: r.s_login, avatarUrl: r.s_avatar, xhsName: r.s_xhs },
+  person: r.owner_user_id
+    ? { id: r.owner_user_id, login: r.owner_login!, avatarUrl: r.owner_avatar, xhsName: r.owner_xhs }
+    : { id: r.s_id, login: r.s_login, avatarUrl: r.s_avatar, xhsName: r.s_xhs },
   personId: r.owner_user_id ?? r.s_id,
 });
 
@@ -628,7 +644,7 @@ export function listUnreadReceivedStars(
               s.id, s.created_at, r.id AS repo_id, r.is_available, r.full_name, r.owner, r.name, r.html_url, r.language,
               u.id AS u_id, u.login AS u_login, u.avatar_url AS u_avatar, u.xhs_name AS u_xhs,
               o.id AS s_id, o.login AS s_login, o.avatar_url AS s_avatar, o.xhs_name AS s_xhs,
-              ow.id AS owner_user_id
+              ow.id AS owner_user_id, ow.login AS owner_login, ow.avatar_url AS owner_avatar, ow.xhs_name AS owner_xhs
        FROM received_star_notifications n
        JOIN stars s ON s.user_id = n.star_user_id AND s.repo_id = n.repo_id
        JOIN repos r ON r.id = n.repo_id
