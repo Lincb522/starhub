@@ -43,7 +43,7 @@ export function RepoCard({
     <article className="glass card-hover flex min-w-0 max-w-full flex-col gap-4 rounded-2xl p-5">
       <div className="flex min-w-0 items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <Avatar src={repo.submitter.avatarUrl} alt={repo.owner} size={40} />
+          <Avatar src={repo.person.avatarUrl} alt={repo.person.login} size={40} />
           <div className="min-w-0 flex-1">
             <a
               href={repo.htmlUrl}
@@ -56,7 +56,7 @@ export function RepoCard({
               {repo.name}
             </a>
             <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-fg/55">{repo.description || "暂无简介"}</p>
-            <XhsBadge name={repo.submitter.xhsName} className="mt-2" />
+            <XhsBadge name={repo.person.xhsName} className="mt-2" />
             {!repo.isAvailable && <p className="mt-2 text-xs text-muted">仓库暂不可访问 · 已暂停展示</p>}
           </div>
         </div>

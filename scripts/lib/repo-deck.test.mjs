@@ -48,6 +48,7 @@ const { StarButton } = await import("../../src/components/star-button.tsx");
 const { RepoCard } = await import("../../src/components/repo-card.tsx");
 const { RepoGrid } = await import("../../src/components/repo-grid.tsx");
 const { HistoryView } = await import("../../src/components/history-view.tsx");
+const { groupReposForViewer } = await import("../../src/lib/repo-person.ts");
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
@@ -55,11 +56,12 @@ globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.confirm = () => false;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-function repo(id, description = "Repository description") {
+function repo(id, description = "Repository description", personId = `owner-${id}`) {
+  const person = { id: personId, login: personId, avatarUrl: null, xhsName: null };
   return {
     id, isAvailable: true, fullName: `owner/repo-${id}`, owner: "owner", name: `repo-${id}`, description,
     language: "TypeScript", stargazers: 10, htmlUrl: `https://github.com/owner/repo-${id}`,
-    submitterId: "owner", submitter: { id: "owner", login: "owner", avatarUrl: null, xhsName: null }, stars: [],
+    ownerUserId: null, submitterId: personId, submitter: person, person, stars: [],
   };
 }
 
@@ -131,9 +133,9 @@ async function mount(t, repos) {
     star: async (id) => { calls.push(id); return { ok: true, message: "已 Star" }; },
     router: { refresh() {}, push() {} },
   };
-  let props = { repos, doneCount: 10, mineCount: 1, canStar: true, starrersOfViewer: [] };
-  const render = async (changes = {}) => {
-    props = { ...props, ...changes };
+  let props = { groups: groupReposForViewer(repos, "viewer").filter((group) => !group.starred), doneCount: 10, mineCount: 1, canStar: true, starrersOfViewer: [] };
+  const render = async ({ repos: nextRepos, ...changes } = {}) => {
+    props = { ...props, ...changes, ...(nextRepos ? { groups: groupReposForViewer(nextRepos, "viewer").filter((group) => !group.starred) } : {}) };
     await act(async () => root.render(React.createElement(RepoDeck, props)));
   };
   await render();
@@ -158,6 +160,36 @@ test("a server refresh removes repositories already starred elsewhere", async (t
   const deck = await mount(t, [repo(1), repo(2)]);
   await deck.render({ repos: [repo(2)], doneCount: 11 });
   assert.equal(deck.current(), "owner/repo-2");
+});
+
+test("one person occupies one card; expansion selects the project to Star", async (t) => {
+  const repos = [repo(1, "First", "alice"), repo(2, "Second", "alice"), repo(3, "Third", "bob")];
+  const deck = await mount(t, repos);
+  assert.equal(deck.current(), "owner/repo-1");
+  assert.ok(deck.container.textContent.includes("待 Star 用户 2"));
+  await act(async () => deck.container.querySelector("summary").click());
+  await act(async () => deck.container.querySelector('button[aria-pressed="false"]').click());
+  assert.equal(deck.current(), "owner/repo-2");
+  await deck.click("Star");
+  await deck.finish();
+  assert.deepEqual(deck.calls, [2]);
+  assert.equal(deck.current(), "owner/repo-3");
+  await deck.render({ repos });
+  assert.equal(deck.current(), "owner/repo-3");
+  assert.ok(deck.container.textContent.includes("待 Star 用户 1"));
+});
+
+test("a Star on any project completes its person, and skipping moves to the next person", async (t) => {
+  const repos = [repo(1, "First", "alice"), repo(2, "Second", "alice"), repo(3, "Third", "bob")];
+  const alreadyStarred = { ...repos[1], stars: [{ user: { id: "viewer" }, createdAt: "2026-09-28T00:00:00Z" }] };
+  const groups = groupReposForViewer([repos[0], alreadyStarred, repos[2]], "viewer");
+  assert.deepEqual(groups.filter((group) => !group.starred).map((group) => group.personId), ["bob"]);
+  const delegated = { ...repo(4, "Delegated", "uploader"), ownerUserId: "alice" };
+  assert.deepEqual(groupReposForViewer([repos[0], delegated], "viewer").map((group) => group.personId), ["alice"]);
+  const deck = await mount(t, repos);
+  await deck.click("下一张");
+  await deck.finish();
+  assert.equal(deck.current(), "owner/repo-3");
 });
 
 test("confirmed stars cannot return through a stale server snapshot", async (t) => {
@@ -223,10 +255,10 @@ test("finishing the last card stays empty and does not double count acknowledged
   await deck.finish();
   await deck.render({ repos: [], doneCount: 11 });
   assert.equal(deck.current(), null);
-  assert.ok(deck.container.textContent.includes("累计 Star 11 个仓库"));
+  assert.ok(deck.container.textContent.includes("累计 Star 11 位用户"));
   await deck.render({ repos: [repo(1)], doneCount: 10 });
   assert.equal(deck.current(), null);
-  assert.ok(deck.container.textContent.includes("累计 Star 11 个仓库"));
+  assert.ok(deck.container.textContent.includes("累计 Star 11 位用户"));
   await deck.render({ repos: [repo(2)], doneCount: 11 });
   assert.equal(deck.current(), "owner/repo-2");
 });
@@ -335,7 +367,7 @@ test("an unavailable repository keeps management but exposes no Star action", as
   globalThis.deckTest = { router: { refresh() {}, push() {} } };
   t.after(async () => { await act(async () => root.unmount()); });
   await act(async () => root.render(React.createElement(RepoCard, {
-    repo: { ...repo(1), isAvailable: false },
+    repo: { ...repo(1, "Repository description", "owner"), isAvailable: false },
     viewer: { id: "owner", login: "owner", isAdmin: false, canStar: true },
   })));
   assert.ok(container.textContent.includes("仓库暂不可访问"));
@@ -348,11 +380,24 @@ test("history retains inaccessible repositories and labels their preserved Star 
   const container = document.createElement("div");
   const root = createRoot(container);
   const person = { id: 'owner', login: 'Ashmmmmmmmmmmmmmmmmmmmmmmmmm', avatarUrl: null, xhsName: null };
-  const record = { id: 1, createdAt: '2026-09-01T12:00:00Z', repo: { ...repo(1), isAvailable: false }, user: person, submitter: person };
+  const record = { id: 1, createdAt: '2026-09-01T12:00:00Z', repo: { ...repo(1), isAvailable: false }, user: person, submitter: person, person, personId: person.id };
   globalThis.deckTest = { given: [record], received: [record] };
   t.after(async () => { await act(async () => root.unmount()); });
   await act(async () => root.render(React.createElement(HistoryView, { user: { id: 'viewer', login: 'viewer' }, syncError: null })));
   assert.ok(container.textContent.includes('owner/repo-1'));
   assert.ok(container.textContent.includes('保留历史 Star 记录'));
   assert.ok(container.textContent.includes('已互 Star'));
+});
+
+test("history counts a person once after Stars on multiple repositories", async (t) => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  const person = { id: "alice", login: "alice", avatarUrl: null, xhsName: null };
+  const record = (id) => ({ id, createdAt: "2026-09-28T00:00:00Z", repo: repo(id), user: person,
+    submitter: person, person, personId: person.id });
+  globalThis.deckTest = { given: [record(1), record(2)], received: [] };
+  t.after(async () => { await act(async () => root.unmount()); });
+  await act(async () => root.render(React.createElement(HistoryView, { user: { id: "viewer", login: "viewer" }, syncError: null })));
+  assert.equal(container.querySelectorAll("#not-returned li").length, 1);
+  assert.ok(container.textContent.includes("已 Star 用户1"));
 });

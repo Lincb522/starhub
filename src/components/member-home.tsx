@@ -5,6 +5,7 @@ import { GitHubSyncWarning } from "@/components/github-sync-warning";
 import { ReceivedStarAlert } from "@/components/received-star-alert";
 import { RepoDeck } from "@/components/repo-deck";
 import type { ReceivedStarNotification, RepoWithStars, StarRecord } from "@/lib/db";
+import type { PersonGroup } from "@/lib/repo-person";
 
 type Member = {
   id: string;
@@ -21,7 +22,7 @@ type SyncResult =
 
 type Props = {
   user: Member;
-  repos: RepoWithStars[];
+  groups: PersonGroup<RepoWithStars>[];
   doneCount: number;
   mineCount: number;
   received: StarRecord[];
@@ -33,7 +34,7 @@ type Props = {
 
 export function MemberHome({
   user,
-  repos,
+  groups,
   doneCount,
   mineCount,
   received,
@@ -58,7 +59,7 @@ export function MemberHome({
               欢迎回来，{displayName}
             </h1>
             <p className="mt-1 text-sm text-muted">
-              {repos.length > 0 ? `还有 ${repos.length} 个仓库等你浏览。` : "待 Star 队列已经清空。"}
+              {groups.length > 0 ? `还有 ${groups.length} 位用户等你浏览。` : "待 Star 队列已经清空。"}
             </p>
           </div>
         </div>
@@ -79,8 +80,8 @@ export function MemberHome({
       )}
 
       <dl className="mt-8 grid grid-cols-2 border-y border-line sm:grid-cols-4">
-        <Metric label="待 Star" value={repos.length} />
-        <Metric label="我已 Star" value={doneCount} bordered />
+        <Metric label="待 Star 用户" value={groups.length} />
+        <Metric label="我已 Star 用户" value={doneCount} bordered />
         <Metric label="收到 Star" value={received.length} />
         <Metric label="我的仓库" value={mineCount} bordered />
       </dl>
@@ -91,7 +92,7 @@ export function MemberHome({
             <div>
               <p className="eyebrow">Star Queue</p>
               <h2 id="star-queue-title" className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
-                待 Star 仓库
+                待 Star 用户
               </h2>
             </div>
             <p className="hidden text-xs text-faint sm:block">左滑 Star · 右滑下一张</p>
@@ -99,7 +100,7 @@ export function MemberHome({
 
           <RepoDeck
             key={user.id}
-            repos={repos}
+            groups={groups}
             canStar={user.canStar}
             mineCount={mineCount}
             doneCount={doneCount}
