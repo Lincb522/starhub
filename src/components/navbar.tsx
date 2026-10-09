@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/current-user";
 import { Avatar } from "@/components/avatar";
 import { LoginWithNotice } from "@/components/login-with-notice";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { PromoLink } from "@/components/promo-link";
 
 export async function Navbar() {
   const user = await getCurrentUser();
@@ -30,7 +31,8 @@ export async function Navbar() {
         </Link>
 
         <div className="flex shrink-0 items-center gap-3 sm:gap-4">
-          <nav className="hidden items-center gap-4 text-xs font-semibold text-muted sm:flex">
+          <nav className="hidden items-center gap-3 text-xs font-semibold text-muted sm:flex">
+            <PromoLink />
             {nav.map(({ href, label }) => (
               <Link key={href} href={href} className="transition hover:text-fg">
                 {label}
