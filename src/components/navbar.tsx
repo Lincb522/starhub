@@ -31,8 +31,8 @@ export async function Navbar() {
         </Link>
 
         <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+          <PromoLink />
           <nav className="hidden items-center gap-3 text-xs font-semibold text-muted sm:flex">
-            <PromoLink />
             {nav.map(({ href, label }) => (
               <Link key={href} href={href} className="transition hover:text-fg">
                 {label}
